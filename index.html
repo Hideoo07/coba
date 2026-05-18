@@ -1,0 +1,335 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Sistem Rekomendasi Properti - AHP & Profile Matching</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: 'Segoe UI', Tahoma, sans-serif; background: #f0f2f5; color: #333; }
+
+        /* HEADER */
+        .header { background: linear-gradient(135deg, #1a73e8, #0d47a1); color: white; padding: 24px 40px; }
+        .header h1 { font-size: 24px; margin-bottom: 4px; }
+        .header p { opacity: 0.85; font-size: 14px; }
+
+        /* LAYOUT */
+        .container { max-width: 1200px; margin: 24px auto; padding: 0 20px; }
+        .grid { display: grid; grid-template-columns: 380px 1fr; gap: 24px; }
+
+        /* CARD */
+        .card { background: white; border-radius: 12px; padding: 24px; box-shadow: 0 2px 8px rgba(0,0,0,0.08); }
+        .card h2 { font-size: 18px; margin-bottom: 16px; color: #1a73e8; border-bottom: 2px solid #e8eaed; padding-bottom: 8px; }
+
+        /* FORM */
+        .form-group { margin-bottom: 14px; }
+        .form-group label { display: block; font-size: 13px; font-weight: 600; margin-bottom: 4px; color: #555; }
+        .form-group input, .form-group select {
+            width: 100%; padding: 10px 12px; border: 1.5px solid #ddd; border-radius: 8px;
+            font-size: 14px; transition: border-color 0.2s;
+        }
+        .form-group input:focus, .form-group select:focus { border-color: #1a73e8; outline: none; }
+        .form-row { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+
+        /* BUTTON */
+        .btn-primary {
+            width: 100%; padding: 12px; background: #1a73e8; color: white; border: none;
+            border-radius: 8px; font-size: 15px; font-weight: 600; cursor: pointer; transition: background 0.2s;
+        }
+        .btn-primary:hover { background: #1557b0; }
+        .btn-primary:disabled { background: #999; cursor: not-allowed; }
+
+        /* RESULTS TABLE */
+        .results-table { width: 100%; border-collapse: collapse; font-size: 13px; }
+        .results-table th { background: #f8f9fa; padding: 10px 8px; text-align: left; font-weight: 600; border-bottom: 2px solid #e0e0e0; }
+        .results-table td { padding: 10px 8px; border-bottom: 1px solid #eee; }
+        .results-table tr:hover { background: #f5f8ff; }
+
+        .rank-badge {
+            display: inline-flex; align-items: center; justify-content: center;
+            width: 28px; height: 28px; border-radius: 50%; font-weight: 700; font-size: 12px; color: white;
+        }
+        .rank-1 { background: #ffd700; color: #333; }
+        .rank-2 { background: #c0c0c0; color: #333; }
+        .rank-3 { background: #cd7f32; }
+        .rank-default { background: #1a73e8; }
+
+        .score-bar { height: 8px; border-radius: 4px; background: #e0e0e0; overflow: hidden; }
+        .score-bar-fill { height: 100%; border-radius: 4px; background: linear-gradient(90deg, #1a73e8, #34a853); }
+
+        /* METRICS */
+        .metrics-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(100px, 1fr)); gap: 12px; margin-bottom: 20px; }
+        .metric-card { text-align: center; padding: 12px 8px; background: #f8f9fa; border-radius: 8px; }
+        .metric-card .value { font-size: 22px; font-weight: 700; color: #1a73e8; }
+        .metric-card .label { font-size: 11px; color: #777; margin-top: 2px; }
+
+        /* AHP SECTION */
+        .ahp-info { display: flex; gap: 12px; margin-bottom: 16px; flex-wrap: wrap; }
+        .ahp-badge { padding: 6px 14px; border-radius: 20px; font-size: 12px; font-weight: 600; }
+        .ahp-consistent { background: #e6f4ea; color: #137333; }
+        .ahp-inconsistent { background: #fce8e6; color: #c5221f; }
+
+        /* LOADING */
+        .loading { text-align: center; padding: 40px; color: #999; }
+        .spinner { display: inline-block; width: 30px; height: 30px; border: 3px solid #e0e0e0; border-top-color: #1a73e8; border-radius: 50%; animation: spin 0.8s linear infinite; }
+        @keyframes spin { to { transform: rotate(360deg); } }
+
+        .empty-state { text-align: center; padding: 60px 20px; color: #999; }
+        .empty-state p { margin-top: 8px; font-size: 14px; }
+
+        .price-format { color: #137333; font-weight: 600; }
+
+        /* RESPONSIVE */
+        @media (max-width: 800px) {
+            .grid { grid-template-columns: 1fr; }
+            .form-row { grid-template-columns: 1fr; }
+        }
+    </style>
+</head>
+<body>
+
+<div class="header">
+    <h1>Sistem Rekomendasi Properti</h1>
+    <p>Metode Analytical Hierarchy Process & Profile Matching</p>
+</div>
+
+<div class="container">
+    <div class="grid">
+        <!-- PANEL KIRI: FORM INPUT -->
+        <div>
+            <div class="card">
+                <h2>Preferensi Anda</h2>
+                <form id="prefForm">
+                    <div class="form-group">
+                        <label>Budget Maksimal (Rp)</label>
+                        <input type="number" id="maxPrice" placeholder="cth: 1500000000" value="1500000000">
+                    </div>
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label>Min. Luas Bangunan (m²)</label>
+                            <input type="number" id="minLuas" placeholder="cth: 80" value="80">
+                        </div>
+                        <div class="form-group">
+                            <label>Kamar Tidur</label>
+                            <select id="kamarTidur">
+                                <option value="0">Semua</option>
+                                <option value="1">1</option>
+                                <option value="2" selected>2</option>
+                                <option value="3">3</option>
+                                <option value="4">4</option>
+                                <option value="5">5+</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div class="form-group">
+                        <label>Jenis Properti</label>
+                        <select id="jenisProperti">
+                            <option value="">Semua</option>
+                        </select>
+                    </div>
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label>Kota/Kabupaten</label>
+                            <select id="kota"><option value="">Semua</option></select>
+                        </div>
+                        <div class="form-group">
+                            <label>Kecamatan</label>
+                            <select id="kecamatan"><option value="">Semua</option></select>
+                        </div>
+                    </div>
+                    <div class="form-group">
+                        <label>Jumlah Rekomendasi (K)</label>
+                        <select id="topK">
+                            <option value="5">Top 5</option>
+                            <option value="10" selected>Top 10</option>
+                            <option value="15">Top 15</option>
+                            <option value="20">Top 20</option>
+                        </select>
+                    </div>
+                    <!-- Tambahkan ini di dalam <form id="prefForm"> -->
+                    <div class="form-group">
+                        <label>Pekerjaan / Kategori Konsumen</label>
+                        <select id="pekerjaan">
+                            <option value="Buruh">Buruh / Pekerja Industri</option>
+                            <option value="ASN">ASN / Pegawai Menengah</option>
+                            <option value="Pengusaha">Pengusaha / Profesional</option>
+                        </select>
+                    </div>
+                    <!-- Di bawah ini adalah input Budget yang sudah ada sebelumnya -->
+                    <div class="form-group">
+                        <label>Budget Maksimal (Rp)</label>
+                        <input type="number" id="maxPrice" placeholder="cth: 1500000000" value="1500000000">
+                    </div>
+                    <button type="submit" class="btn-primary" id="btnSubmit">Cari Rekomendasi</button>
+                </form>
+            </div>
+        </div>
+
+        <!-- PANEL KANAN: HASIL -->
+        <div>
+            <!-- Metrik Evaluasi -->
+            <div class="card" id="metricsCard" style="display:none; margin-bottom: 24px;">
+                <h2>Metrik Evaluasi</h2>
+                <div class="ahp-info" id="ahpInfo"></div>
+                <div class="metrics-grid" id="metricsGrid"></div>
+            </div>
+
+            <!-- Hasil Rekomendasi -->
+            <div class="card">
+                <h2>Hasil Rekomendasi</h2>
+                <div id="resultsArea">
+                    <div class="empty-state">
+                        <p style="font-size:36px;">🏠</p>
+                        <p>Masukkan preferensi Anda dan klik <strong>Cari Rekomendasi</strong></p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+    const API_BASE = 'http://localhost:5000';
+
+    // ============ FORMAT HELPERS ============
+    function formatRupiah(num) {
+        if (num >= 1_000_000_000) return 'Rp ' + (num / 1_000_000_000).toFixed(1) + ' M';
+        if (num >= 1_000_000) return 'Rp ' + (num / 1_000_000).toFixed(0) + ' Jt';
+        return 'Rp ' + num.toLocaleString('id-ID');
+    }
+
+    function rankClass(rank) {
+        if (rank === 1) return 'rank-1';
+        if (rank === 2) return 'rank-2';
+        if (rank === 3) return 'rank-3';
+        return 'rank-default';
+    }
+
+    // ============ LOAD DATA INFO ============
+    async function loadDataInfo() {
+        try {
+            const res = await fetch(`${API_BASE}/api/data-info`);
+            const info = await res.json();
+
+            // Populate dropdowns
+            const jenisSelect = document.getElementById('jenisProperti');
+            info.jenis_list.forEach(j => {
+                jenisSelect.innerHTML += `<option value="${j}">${j}</option>`;
+            });
+
+            const kotaSelect = document.getElementById('kota');
+            info.kota_list.forEach(k => {
+                kotaSelect.innerHTML += `<option value="${k}">${k}</option>`;
+            });
+
+            const kecSelect = document.getElementById('kecamatan');
+            info.kecamatan_list.forEach(k => {
+                kecSelect.innerHTML += `<option value="${k}">${k}</option>`;
+            });
+
+            document.getElementById('maxPrice').placeholder = `Min: ${formatRupiah(info.price_range.min)}`;
+        } catch (e) {
+            console.log('Backend belum aktif, gunakan mode standalone');
+        }
+    }
+
+    // ============ SUBMIT FORM ============
+    document.getElementById('prefForm').addEventListener('submit', async function(e) {
+        e.preventDefault();
+        const btn = document.getElementById('btnSubmit');
+        btn.disabled = true;
+        btn.textContent = 'Memproses...';
+
+        document.getElementById('resultsArea').innerHTML = '<div class="loading"><div class="spinner"></div><p>Menghitung rekomendasi...</p></div>';
+
+        const payload = {
+            pekerjaan: document.getElementById('pekerjaan').value, // <--- TAMBAHKAN BARIS INI
+            max_price: parseInt(document.getElementById('maxPrice').value) || 0,
+            min_luas: parseInt(document.getElementById('minLuas').value) || 0,
+            kamar_tidur: parseInt(document.getElementById('kamarTidur').value) || 0,
+            jenis_properti: document.getElementById('jenisProperti').value,
+            kecamatan: document.getElementById('kecamatan').value,
+            kota: document.getElementById('kota').value,
+            top_k: parseInt(document.getElementById('topK').value),
+        };
+        try {
+            const res = await fetch(`${API_BASE}/api/rekomendasi`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(payload)
+            });
+            const result = await res.json();
+            renderResults(result);
+        } catch (err) {
+            document.getElementById('resultsArea').innerHTML =
+                '<div class="empty-state"><p style="color:#c5221f;">Gagal terhubung ke server. Pastikan backend berjalan di localhost:5000</p></div>';
+        }
+
+        btn.disabled = false;
+        btn.textContent = 'Cari Rekomendasi';
+    });
+
+    // ============ RENDER RESULTS ============
+    function renderResults(result) {
+        // Metrics
+        const mc = document.getElementById('metricsCard');
+        mc.style.display = 'block';
+
+        const m = result.metrics;
+        document.getElementById('metricsGrid').innerHTML = `
+            <div class="metric-card"><div class="value">${(m.precision_at_k * 100).toFixed(1)}%</div><div class="label">Precision@${m.k}</div></div>
+            <div class="metric-card"><div class="value">${(m.recall_at_k * 100).toFixed(1)}%</div><div class="label">Recall@${m.k}</div></div>
+            <div class="metric-card"><div class="value">${(m.f1_at_k * 100).toFixed(1)}%</div><div class="label">F1@${m.k}</div></div>
+            <div class="metric-card"><div class="value">${(m.ndcg_at_k * 100).toFixed(1)}%</div><div class="label">NDCG@${m.k}</div></div>
+            <div class="metric-card"><div class="value">${m.mrr.toFixed(3)}</div><div class="label">MRR</div></div>
+        `;
+
+        // AHP info
+        const ahp = result.ahp;
+        const labels = ['Harga', 'Luas', 'Kamar', 'Jenis', 'Lokasi'];
+        let ahpHtml = `<span class="ahp-badge ${ahp.is_consistent ? 'ahp-consistent' : 'ahp-inconsistent'}">
+            CR: ${ahp.consistency_ratio} ${ahp.is_consistent ? '✓ Konsisten' : '✗ Tidak Konsisten'}</span>`;
+        ahp.weights.forEach((w, i) => {
+            ahpHtml += `<span class="ahp-badge ahp-consistent">${labels[i]}: ${(w * 100).toFixed(1)}%</span>`;
+        });
+        document.getElementById('ahpInfo').innerHTML = ahpHtml;
+
+        // Table
+        if (result.recommendations.length === 0) {
+            document.getElementById('resultsArea').innerHTML = '<div class="empty-state"><p>Tidak ada properti yang cocok.</p></div>';
+            return;
+        }
+
+        let tableHtml = `<table class="results-table">
+            <thead><tr>
+                <th>#</th><th>Harga</th><th>Luas</th><th>KT</th><th>Jenis</th><th>Lokasi</th><th>Skor</th>
+            </tr></thead><tbody>`;
+
+        result.recommendations.forEach(r => {
+            const pct = (r.skor / 5 * 100).toFixed(0);
+            tableHtml += `<tr>
+                <td><span class="rank-badge ${rankClass(r.rank)}">${r.rank}</span></td>
+                <td class="price-format">${formatRupiah(r.harga)}</td>
+                <td>${r.luas_bangunan} m²</td>
+                <td>${r.kamar_tidur}</td>
+                <td>${r.jenis_properti}</td>
+                <td>${r.kecamatan}, ${r.kota}</td>
+                <td>
+                    <div style="display:flex;align-items:center;gap:8px;">
+                        <div class="score-bar" style="width:80px;"><div class="score-bar-fill" style="width:${pct}%"></div></div>
+                        <span style="font-weight:600;font-size:13px;">${r.skor.toFixed(2)}</span>
+                    </div>
+                </td>
+            </tr>`;
+        });
+
+        tableHtml += '</tbody></table>';
+        document.getElementById('resultsArea').innerHTML = tableHtml;
+    }
+
+    // Init
+    loadDataInfo();
+</script>
+
+</body>
+</html>
