@@ -1,0 +1,449 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Sistem Rekomendasi Properti - AHP &amp; Profile Matching</title>
+<style>
+  /* ── Reset & Base ───────────────────────────────────────────── */
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: 'Segoe UI', sans-serif; background: #f0f4f8; color: #2d3748; min-height: 100vh; }
+
+  /* ── Layout ─────────────────────────────────────────────────── */
+  .container { max-width: 1100px; margin: 0 auto; padding: 24px 16px; }
+  header { background: linear-gradient(135deg, #1a365d 0%, #2b6cb0 100%);
+           color: #fff; padding: 28px 32px; border-radius: 14px; margin-bottom: 28px; }
+  header h1 { font-size: 1.7rem; font-weight: 700; }
+  header p  { font-size: 0.9rem; opacity: 0.85; margin-top: 6px; }
+
+  .grid-2 { display: grid; grid-template-columns: 380px 1fr; gap: 24px; align-items: start; }
+  @media(max-width: 860px){ .grid-2 { grid-template-columns: 1fr; } }
+
+  /* ── Card ───────────────────────────────────────────────────── */
+  .card { background: #fff; border-radius: 12px; padding: 24px;
+          box-shadow: 0 2px 12px rgba(0,0,0,.08); }
+  .card h2 { font-size: 1.05rem; font-weight: 700; color: #1a365d;
+             margin-bottom: 18px; padding-bottom: 10px;
+             border-bottom: 2px solid #ebf4ff; }
+
+  /* ── Form ───────────────────────────────────────────────────── */
+  .form-group { margin-bottom: 14px; }
+  .form-group label { display: block; font-size: 0.82rem; font-weight: 600;
+                      color: #4a5568; margin-bottom: 5px; }
+  .form-group input,
+  .form-group select { width: 100%; padding: 9px 12px; border: 1.5px solid #cbd5e0;
+                       border-radius: 8px; font-size: 0.9rem; background: #f7fafc;
+                       transition: border-color .2s, box-shadow .2s; }
+  .form-group input:focus,
+  .form-group select:focus { outline: none; border-color: #3182ce;
+                              box-shadow: 0 0 0 3px rgba(49,130,206,.15); }
+  .form-group select:disabled { opacity: .5; cursor: not-allowed; }
+
+  /* wilayah section */
+  .wilayah-section { background: #ebf8ff; border: 1.5px solid #bee3f8;
+                     border-radius: 10px; padding: 14px; margin-bottom: 14px; }
+  .wilayah-section .section-title { font-size: 0.8rem; font-weight: 700;
+                                    color: #2b6cb0; margin-bottom: 10px;
+                                    display: flex; align-items: center; gap: 6px; }
+  .wilayah-section .form-group { margin-bottom: 10px; }
+  .wilayah-section .form-group:last-child { margin-bottom: 0; }
+  .badge-wilayah { background: #2b6cb0; color: #fff; font-size: 0.7rem;
+                   padding: 2px 7px; border-radius: 20px; }
+
+  /* ── Button ─────────────────────────────────────────────────── */
+  .btn { width: 100%; padding: 12px; border: none; border-radius: 8px;
+         font-size: 0.95rem; font-weight: 700; cursor: pointer;
+         transition: transform .15s, box-shadow .15s; }
+  .btn-primary { background: linear-gradient(135deg, #2b6cb0, #3182ce); color: #fff; }
+  .btn-primary:hover:not(:disabled) { transform: translateY(-1px);
+                                       box-shadow: 0 4px 14px rgba(49,130,206,.4); }
+  .btn-primary:disabled { opacity: .6; cursor: not-allowed; }
+
+  /* ── Metrics ────────────────────────────────────────────────── */
+  .metrics-grid { display: grid; grid-template-columns: repeat(5,1fr); gap: 10px;
+                  margin-bottom: 20px; }
+  @media(max-width:700px){ .metrics-grid { grid-template-columns: repeat(2,1fr); } }
+  .metric-item { background: #f7fafc; border: 1.5px solid #e2e8f0;
+                 border-radius: 10px; padding: 12px; text-align: center; }
+  .metric-item .val { font-size: 1.3rem; font-weight: 800; color: #2b6cb0; }
+  .metric-item .lbl { font-size: 0.7rem; color: #718096; margin-top: 2px; }
+
+  /* ── Result Cards ───────────────────────────────────────────── */
+  .result-card { background: #fff; border: 1.5px solid #e2e8f0; border-radius: 10px;
+                 padding: 16px; margin-bottom: 12px; display: grid;
+                 grid-template-columns: auto 1fr auto; gap: 12px; align-items: center;
+                 transition: box-shadow .2s; }
+  .result-card:hover { box-shadow: 0 4px 16px rgba(0,0,0,.1); }
+  .rank-badge { background: linear-gradient(135deg, #1a365d, #2b6cb0);
+                color: #fff; border-radius: 50%; width: 38px; height: 38px;
+                display: flex; align-items: center; justify-content: center;
+                font-weight: 800; font-size: 0.9rem; flex-shrink: 0; }
+  .result-info h3 { font-size: 0.95rem; font-weight: 700; color: #1a365d; }
+  .result-info .loc { font-size: 0.8rem; color: #718096; margin-top: 3px;
+                      display: flex; align-items: center; gap: 5px; flex-wrap: wrap; }
+  .loc-badge { background: #ebf8ff; color: #2b6cb0; padding: 2px 8px;
+               border-radius: 12px; font-size: 0.72rem; font-weight: 600; }
+  .loc-badge.prov { background: #faf5ff; color: #6b46c1; }
+  .loc-badge.kota { background: #ebf8ff; color: #2b6cb0; }
+  .loc-badge.kec  { background: #f0fff4; color: #276749; }
+  .result-info .details { margin-top: 6px; font-size: 0.8rem; color: #4a5568; }
+  .skor-box { text-align: center; flex-shrink: 0; }
+  .skor-box .skor-val { font-size: 1.4rem; font-weight: 800; color: #2b6cb0; }
+  .skor-box .skor-lbl { font-size: 0.65rem; color: #a0aec0; }
+  .skor-bar { height: 5px; background: #e2e8f0; border-radius: 3px;
+              margin-top: 4px; overflow: hidden; width: 60px; }
+  .skor-bar-fill { height: 100%; background: linear-gradient(90deg,#2b6cb0,#63b3ed);
+                   border-radius: 3px; }
+
+  /* ── Status / Loader ────────────────────────────────────────── */
+  .empty-state { text-align: center; padding: 48px 24px; color: #a0aec0; }
+  .empty-state svg { width: 52px; height: 52px; margin-bottom: 12px; }
+  .loader { display: none; text-align: center; padding: 40px; }
+  .spinner { width: 36px; height: 36px; border: 3px solid #e2e8f0;
+             border-top-color: #3182ce; border-radius: 50%;
+             animation: spin .7s linear infinite; margin: 0 auto 10px; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  .alert { padding: 12px 16px; border-radius: 8px; font-size: 0.88rem; margin-bottom: 14px; }
+  .alert-info { background: #ebf8ff; color: #2b6cb0; border: 1px solid #bee3f8; }
+  .alert-warn { background: #fffbeb; color: #975a16; border: 1px solid #fbd38d; }
+
+  /* bobot strip */
+  .weights-strip { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 8px; }
+  .w-chip { font-size: 0.72rem; padding: 3px 9px; border-radius: 20px;
+            background: #ebf4ff; color: #2b6cb0; border: 1px solid #bee3f8; }
+</style>
+</head>
+<body>
+<div class="container">
+
+  <header>
+    <h1>🏠 Sistem Rekomendasi Properti</h1>
+    <p>AHP &amp; Profile Matching — Filter Wilayah: Provinsi → Kota/Kab → Kecamatan</p>
+  </header>
+
+  <div class="grid-2">
+    <!-- ── FORM ──────────────────────────────────────────────── -->
+    <div class="card">
+      <h2>Preferensi Anda</h2>
+
+      <!-- Pekerjaan -->
+      <div class="form-group">
+        <label>Pekerjaan / Kategori Konsumen</label>
+        <select id="pekerjaan">
+          <option value="Buruh">Buruh / Pekerja Industri</option>
+          <option value="ASN">ASN / Pegawai Menengah</option>
+          <option value="Pengusaha">Pengusaha / Profesional</option>
+          <option value="Umum" selected>Umum</option>
+        </select>
+      </div>
+
+      <!-- Harga & Luas -->
+      <div class="form-group">
+        <label>Budget Maksimal (Rp)</label>
+        <input type="number" id="max_price" placeholder="cth: 500000000" min="0" />
+      </div>
+      <div class="form-group">
+        <label>Min. Luas Bangunan (m²)</label>
+        <input type="number" id="min_luas" placeholder="cth: 60" min="0" />
+      </div>
+
+      <!-- Kamar & Jenis -->
+      <div class="form-group">
+        <label>Kamar Tidur</label>
+        <select id="kamar_tidur">
+          <option value="0">Semua</option>
+          <option value="1">1</option>
+          <option value="2">2</option>
+          <option value="3">3</option>
+          <option value="4">4</option>
+          <option value="5">5+</option>
+        </select>
+      </div>
+      <div class="form-group">
+        <label>Jenis Properti</label>
+        <select id="jenis_properti">
+          <option value="">Semua</option>
+        </select>
+      </div>
+
+      <!-- ── WILAYAH SECTION ─────────────────────────────────── -->
+      <div class="wilayah-section">
+        <div class="section-title">
+          📍 Pilih Wilayah
+          <span class="badge-wilayah">Bertingkat</span>
+        </div>
+
+        <div class="form-group">
+          <label>Provinsi</label>
+          <select id="provinsi" onchange="onProvinsiChange()">
+            <option value="">Semua Provinsi</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label>Kota / Kabupaten</label>
+          <select id="kota" onchange="onKotaChange()" disabled>
+            <option value="">— Pilih Provinsi dulu —</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label>Kecamatan</label>
+          <select id="kecamatan" disabled>
+            <option value="">— Pilih Kota dulu —</option>
+          </select>
+        </div>
+      </div>
+
+      <!-- Top-K -->
+      <div class="form-group">
+        <label>Jumlah Rekomendasi (K)</label>
+        <select id="top_k">
+          <option value="5">Top 5</option>
+          <option value="10" selected>Top 10</option>
+          <option value="15">Top 15</option>
+          <option value="20">Top 20</option>
+        </select>
+      </div>
+
+      <button class="btn btn-primary" id="btnCari" onclick="cariRekomendasi()">
+        🔍 Cari Rekomendasi
+      </button>
+
+      <!-- AHP bobot info -->
+      <div id="bobotInfo" style="margin-top:14px;display:none;">
+        <div class="alert alert-info" id="bobotAlert"></div>
+      </div>
+    </div>
+
+    <!-- ── HASIL ──────────────────────────────────────────────── -->
+    <div>
+      <!-- Metrics -->
+      <div class="card" id="metricCard" style="display:none; margin-bottom:20px;">
+        <h2>Metrik Evaluasi</h2>
+        <div class="metrics-grid">
+          <div class="metric-item"><div class="val" id="mPrec">-</div><div class="lbl">Precision@K</div></div>
+          <div class="metric-item"><div class="val" id="mRecall">-</div><div class="lbl">Recall@K</div></div>
+          <div class="metric-item"><div class="val" id="mF1">-</div><div class="lbl">F1@K</div></div>
+          <div class="metric-item"><div class="val" id="mNdcg">-</div><div class="lbl">nDCG@K</div></div>
+          <div class="metric-item"><div class="val" id="mMrr">-</div><div class="lbl">MRR</div></div>
+        </div>
+      </div>
+
+      <!-- Hasil Rekomendasi -->
+      <div class="card">
+        <h2>Hasil Rekomendasi <span id="totalInfo" style="font-weight:400;font-size:0.82rem;color:#718096;"></span></h2>
+        <div id="loader" class="loader"><div class="spinner"></div><p>Memproses...</p></div>
+        <div id="results">
+          <div class="empty-state">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+              <path d="M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z"/><polyline points="9,22 9,12 15,12 15,22"/>
+            </svg>
+            <p>Masukkan preferensi Anda dan klik <strong>Cari Rekomendasi</strong></p>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+// ── State global ────────────────────────────────────────────────
+let wilayahData = {};   // { provinsi: { kota: [kec, ...] } }
+const API = '';         // kosong = same origin (Flask)
+
+// ── Init: ambil data dari backend ───────────────────────────────
+async function init() {
+  try {
+    const res  = await fetch(API + '/api/data-info');
+    const info = await res.json();
+
+    // Isi jenis properti
+    const selJenis = document.getElementById('jenis_properti');
+    (info.jenis_list || []).forEach(j => {
+      const o = document.createElement('option');
+      o.value = j; o.textContent = j;
+      selJenis.appendChild(o);
+    });
+
+    // Simpan struktur wilayah
+    wilayahData = info.wilayah || {};
+
+    // Isi dropdown provinsi
+    const selProv = document.getElementById('provinsi');
+    (info.provinsi_list || []).forEach(p => {
+      const o = document.createElement('option');
+      o.value = p; o.textContent = p;
+      selProv.appendChild(o);
+    });
+  } catch(e) {
+    console.warn('Tidak bisa terhubung ke backend:', e);
+  }
+}
+
+// ── Cascading: Provinsi → Kota ──────────────────────────────────
+function onProvinsiChange() {
+  const prov    = document.getElementById('provinsi').value;
+  const selKota = document.getElementById('kota');
+  const selKec  = document.getElementById('kecamatan');
+
+  // Reset kota & kecamatan
+  selKota.innerHTML = '<option value="">Semua Kota/Kab</option>';
+  selKec.innerHTML  = '<option value="">— Pilih Kota dulu —</option>';
+  selKec.disabled   = true;
+
+  if (!prov) {
+    selKota.disabled = true;
+    return;
+  }
+
+  const kotaList = Object.keys(wilayahData[prov] || {});
+  kotaList.sort().forEach(k => {
+    const o = document.createElement('option');
+    o.value = k; o.textContent = k;
+    selKota.appendChild(o);
+  });
+  selKota.disabled = false;
+}
+
+// ── Cascading: Kota → Kecamatan ─────────────────────────────────
+function onKotaChange() {
+  const prov    = document.getElementById('provinsi').value;
+  const kota    = document.getElementById('kota').value;
+  const selKec  = document.getElementById('kecamatan');
+
+  selKec.innerHTML = '<option value="">Semua Kecamatan</option>';
+
+  if (!prov || !kota) {
+    selKec.disabled = true;
+    return;
+  }
+
+  const kecList = (wilayahData[prov] || {})[kota] || [];
+  kecList.sort().forEach(k => {
+    const o = document.createElement('option');
+    o.value = k; o.textContent = k;
+    selKec.appendChild(o);
+  });
+  selKec.disabled = false;
+}
+
+// ── Cari Rekomendasi ────────────────────────────────────────────
+async function cariRekomendasi() {
+  const btn = document.getElementById('btnCari');
+  btn.disabled = true;
+  document.getElementById('loader').style.display = 'block';
+  document.getElementById('results').innerHTML = '';
+  document.getElementById('metricCard').style.display = 'none';
+  document.getElementById('bobotInfo').style.display = 'none';
+
+  const payload = {
+    max_price:      parseInt(document.getElementById('max_price').value) || 0,
+    min_luas:       parseInt(document.getElementById('min_luas').value)  || 0,
+    kamar_tidur:    parseInt(document.getElementById('kamar_tidur').value) || 0,
+    jenis_properti: document.getElementById('jenis_properti').value,
+    provinsi:       document.getElementById('provinsi').value,
+    kota:           document.getElementById('kota').value,
+    kecamatan:      document.getElementById('kecamatan').value,
+    pekerjaan:      document.getElementById('pekerjaan').value,
+    top_k:          parseInt(document.getElementById('top_k').value),
+  };
+
+  try {
+    const res  = await fetch(API + '/api/rekomendasi', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload)
+    });
+    const data = await res.json();
+
+    document.getElementById('loader').style.display = 'none';
+    renderBobot(data.ahp);
+    renderMetrics(data.metrics);
+    renderResults(data.recommendations, data.total_scored, data.pesan);
+  } catch(e) {
+    document.getElementById('loader').style.display = 'none';
+    document.getElementById('results').innerHTML =
+      `<div class="alert alert-warn">⚠ Gagal terhubung ke server Flask. Pastikan <code>python app.py</code> sudah berjalan.</div>`;
+  }
+
+  btn.disabled = false;
+}
+
+// ── Render bobot AHP ────────────────────────────────────────────
+function renderBobot(ahp) {
+  if (!ahp) return;
+  const labels = ['Harga','Luas','Kamar','Jenis','Lokasi'];
+  const chips  = ahp.weights.map((w, i) =>
+    `<span class="w-chip">${labels[i]}: ${(w*100).toFixed(0)}%</span>`
+  ).join('');
+  document.getElementById('bobotAlert').innerHTML =
+    `<strong>Bobot AHP (${ahp.kategori_konsumen})</strong><div class="weights-strip">${chips}</div>`;
+  document.getElementById('bobotInfo').style.display = 'block';
+}
+
+// ── Render metrik ───────────────────────────────────────────────
+function renderMetrics(m) {
+  if (!m) return;
+  document.getElementById('mPrec').textContent   = m.precision_at_k.toFixed(3);
+  document.getElementById('mRecall').textContent = m.recall_at_k.toFixed(3);
+  document.getElementById('mF1').textContent     = m.f1_at_k.toFixed(3);
+  document.getElementById('mNdcg').textContent   = m.ndcg_at_k.toFixed(3);
+  document.getElementById('mMrr').textContent    = m.mrr.toFixed(3);
+  document.getElementById('metricCard').style.display = 'block';
+}
+
+// ── Render hasil ────────────────────────────────────────────────
+function renderResults(recs, total, pesan) {
+  const container = document.getElementById('results');
+  document.getElementById('totalInfo').textContent =
+    total ? `(dari ${total} properti terfilter)` : '';
+
+  if (!recs || recs.length === 0) {
+    container.innerHTML = `
+      <div class="alert alert-warn">
+        ⚠ ${pesan || 'Tidak ada properti yang cocok dengan preferensi Anda.'}
+      </div>
+      <div class="empty-state">
+        <p>Coba perluas filter wilayah atau perbesar budget Anda.</p>
+      </div>`;
+    return;
+  }
+
+  container.innerHTML = recs.map(r => {
+    const persen = Math.min(100, (r.skor / 5) * 100).toFixed(0);
+    return `
+    <div class="result-card">
+      <div class="rank-badge">${r.rank}</div>
+      <div class="result-info">
+        <h3>${r.jenis_properti} — ${formatRp(r.harga)}</h3>
+        <div class="loc">
+          ${r.provinsi && r.provinsi !== '-' ? `<span class="loc-badge prov">🗺 ${r.provinsi}</span>` : ''}
+          ${r.kota     && r.kota     !== '-' ? `<span class="loc-badge kota">🏙 ${r.kota}</span>` : ''}
+          ${r.kecamatan && r.kecamatan !== '-' ? `<span class="loc-badge kec">📌 ${r.kecamatan}</span>` : ''}
+        </div>
+        <div class="details">
+          🛏 ${r.kamar_tidur} Kamar &nbsp;|&nbsp; 📐 ${r.luas_bangunan} m²
+          &nbsp;|&nbsp; Skor detail → H:${r.detail_skor.harga?.toFixed(1)} L:${r.detail_skor.luas?.toFixed(1)}
+          K:${r.detail_skor.kamar?.toFixed(1)} J:${r.detail_skor.jenis?.toFixed(1)} Lok:${r.detail_skor.lokasi?.toFixed(1)}
+        </div>
+      </div>
+      <div class="skor-box">
+        <div class="skor-val">${r.skor.toFixed(2)}</div>
+        <div class="skor-lbl">Skor</div>
+        <div class="skor-bar"><div class="skor-bar-fill" style="width:${persen}%"></div></div>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+// ── Utility ─────────────────────────────────────────────────────
+function formatRp(n) {
+  if (n >= 1_000_000_000) return 'Rp ' + (n/1_000_000_000).toFixed(2) + ' M';
+  if (n >= 1_000_000)     return 'Rp ' + (n/1_000_000).toFixed(0) + ' Jt';
+  return 'Rp ' + n.toLocaleString('id-ID');
+}
+
+// ── Start ────────────────────────────────────────────────────────
+init();
+</script>
+</body>
+</html>
